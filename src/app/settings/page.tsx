@@ -7,6 +7,7 @@ import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth-context';
 
 interface UserProfile {
   email: string;
@@ -24,6 +25,7 @@ interface SecuritySettings {
 
 export default function SettingsPage() {
   const router = useRouter();
+  const { user, userData } = useAuth();
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('notifications');
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -31,7 +33,7 @@ export default function SettingsPage() {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [passwordError, setPasswordError] = useState('');
-  
+
   // Notification settings
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [smsNotifications, setSmsNotifications] = useState(true);
@@ -39,13 +41,13 @@ export default function SettingsPage() {
   const [appointmentReminders, setAppointmentReminders] = useState(true);
   const [donationReminders, setDonationReminders] = useState(true);
   const [appNotifications, setAppNotifications] = useState(true);
-  
+
   // Privacy settings
   const [profileVisibility, setProfileVisibility] = useState('public');
   const [locationSharing, setLocationSharing] = useState(false);
   const [showContactInfo, setShowContactInfo] = useState(true);
   const [showDonationHistory, setShowDonationHistory] = useState(true);
-  
+
   // Account settings
   const [profile, setProfile] = useState<UserProfile>({
     email: 'john.doe@example.com',
@@ -55,13 +57,13 @@ export default function SettingsPage() {
     lastName: 'Doe',
     bloodType: 'O+'
   });
-  
+
   // Security settings
   const [security, setSecurity] = useState<SecuritySettings>({
     twoFactorEnabled: false,
     lastPasswordChange: '2023-01-15'
   });
-  
+
   // Password change state
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -75,7 +77,7 @@ export default function SettingsPage() {
     if (savedSettings) {
       try {
         const parsedSettings = JSON.parse(savedSettings);
-        
+
         // Notification settings
         if (parsedSettings.notifications) {
           setEmailNotifications(parsedSettings.notifications.email);
@@ -85,7 +87,7 @@ export default function SettingsPage() {
           setDonationReminders(parsedSettings.notifications.donations);
           setAppNotifications(parsedSettings.notifications.app);
         }
-        
+
         // Privacy settings
         if (parsedSettings.privacy) {
           setProfileVisibility(parsedSettings.privacy.profileVisibility);
@@ -93,12 +95,12 @@ export default function SettingsPage() {
           setShowContactInfo(parsedSettings.privacy.showContactInfo);
           setShowDonationHistory(parsedSettings.privacy.showDonationHistory);
         }
-        
+
         // Profile settings
         if (parsedSettings.profile) {
           setProfile(parsedSettings.profile);
         }
-        
+
         // Security settings
         if (parsedSettings.security) {
           setSecurity(parsedSettings.security);
@@ -154,7 +156,7 @@ export default function SettingsPage() {
       [name]: value
     }));
   };
-  
+
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setPasswordData(prev => ({
@@ -162,32 +164,32 @@ export default function SettingsPage() {
       [name]: value
     }));
   };
-  
+
   const submitPasswordChange = (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError('');
-    
+
     // Validate password
     if (passwordData.newPassword.length < 8) {
       setPasswordError('Password must be at least 8 characters long');
       return;
     }
-    
+
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       setPasswordError('Passwords do not match');
       return;
     }
-    
+
     // In a real app, you would call an API to change the password
     alert('Password changed successfully!');
     setShowPasswordModal(false);
-    
+
     // Update last password change date
     setSecurity(prev => ({
       ...prev,
       lastPasswordChange: new Date().toISOString().split('T')[0]
     }));
-    
+
     // Reset form
     setPasswordData({
       currentPassword: '',
@@ -195,26 +197,26 @@ export default function SettingsPage() {
       confirmPassword: ''
     });
   };
-  
+
   const toggleTwoFactor = () => {
     setSecurity(prev => ({
       ...prev,
       twoFactorEnabled: !prev.twoFactorEnabled
     }));
-    
-    alert(security.twoFactorEnabled ? 
-      'Two-factor authentication disabled.' : 
+
+    alert(security.twoFactorEnabled ?
+      'Two-factor authentication disabled.' :
       'Two-factor authentication enabled.'
     );
   };
-  
+
   const exportUserData = () => {
     setExportingData(true);
-    
+
     // In a real app, you would call an API to generate the export
     setTimeout(() => {
       setExportingData(false);
-      
+
       // Create a downloadable object with the user's data
       const userData = {
         profile,
@@ -237,7 +239,7 @@ export default function SettingsPage() {
           lastPasswordChange: security.lastPasswordChange
         }
       };
-      
+
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(userData, null, 2));
       const downloadAnchorNode = document.createElement('a');
       downloadAnchorNode.setAttribute("href", dataStr);
@@ -247,12 +249,12 @@ export default function SettingsPage() {
       downloadAnchorNode.remove();
     }, 1500);
   };
-  
+
   const deleteAccount = () => {
     // In a real app, you would call an API to delete the account
     alert('Account deletion initiated. You will receive a confirmation email.');
     setShowDeleteModal(false);
-    
+
     setTimeout(() => {
       router.push('/');
     }, 2000);
@@ -279,10 +281,10 @@ export default function SettingsPage() {
       profile,
       security
     };
-    
+
     // Save to localStorage (in a real app, you'd save to a database via API)
     localStorage.setItem('bloodconnect_settings', JSON.stringify(allSettings));
-    
+
     // Show success message
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 3000);
@@ -304,7 +306,9 @@ export default function SettingsPage() {
             <div>
               <SidebarLink
                 link={{
-                  label: "John Doe",
+                  label: userData?.firstName && userData?.lastName
+                    ? `${userData.firstName} ${userData.lastName}`
+                    : user?.email?.split('@')[0] || "User",
                   href: "/profile",
                   icon: (
                     <div className="h-7 w-7 shrink-0 rounded-full bg-[#DC2626]/30 flex items-center justify-center">
@@ -324,13 +328,12 @@ export default function SettingsPage() {
               <h2 className="text-3xl font-bold text-[#2C3E50]">
                 Your <span className="text-[#DC2626]">Settings</span>
               </h2>
-              
+
               {/* Save button */}
-              <button 
+              <button
                 onClick={saveSettings}
-                className={`flex items-center px-4 py-2 rounded-md text-white transition-colors ${
-                  saveSuccess ? 'bg-green-500' : 'bg-[#DC2626] hover:bg-[#B91C1C]'
-                }`}
+                className={`flex items-center px-4 py-2 rounded-md text-white transition-colors ${saveSuccess ? 'bg-green-500' : 'bg-[#DC2626] hover:bg-[#B91C1C]'
+                  }`}
               >
                 {saveSuccess ? (
                   <>
@@ -352,61 +355,56 @@ export default function SettingsPage() {
                 <div className="p-6 rounded-lg bg-white border border-[#E1E8ED] shadow-sm sticky top-8">
                   <h3 className="text-xl font-semibold text-[#2C3E50] mb-4">Settings Menu</h3>
                   <div className="space-y-2">
-                    <button 
+                    <button
                       onClick={() => setActiveTab('notifications')}
-                      className={`w-full text-left p-3 rounded-md flex items-center space-x-2 ${
-                        activeTab === 'notifications' 
-                          ? 'bg-[#DC2626]/10 text-[#DC2626] font-medium' 
+                      className={`w-full text-left p-3 rounded-md flex items-center space-x-2 ${activeTab === 'notifications'
+                          ? 'bg-[#DC2626]/10 text-[#DC2626] font-medium'
                           : 'hover:bg-[#F8FAFC] text-[#2C3E50]'
-                      }`}
+                        }`}
                     >
                       <Bell className={`h-5 w-5 ${activeTab === 'notifications' ? 'text-[#DC2626]' : 'text-[#7F8C8D]'}`} />
                       <span>Notification Preferences</span>
                     </button>
-                    
-                    <button 
+
+                    <button
                       onClick={() => setActiveTab('account')}
-                      className={`w-full text-left p-3 rounded-md flex items-center space-x-2 ${
-                        activeTab === 'account' 
-                          ? 'bg-[#DC2626]/10 text-[#DC2626] font-medium' 
+                      className={`w-full text-left p-3 rounded-md flex items-center space-x-2 ${activeTab === 'account'
+                          ? 'bg-[#DC2626]/10 text-[#DC2626] font-medium'
                           : 'hover:bg-[#F8FAFC] text-[#2C3E50]'
-                      }`}
+                        }`}
                     >
                       <User className={`h-5 w-5 ${activeTab === 'account' ? 'text-[#DC2626]' : 'text-[#7F8C8D]'}`} />
                       <span>Account Settings</span>
                     </button>
-                    
-                    <button 
+
+                    <button
                       onClick={() => setActiveTab('privacy')}
-                      className={`w-full text-left p-3 rounded-md flex items-center space-x-2 ${
-                        activeTab === 'privacy' 
-                          ? 'bg-[#DC2626]/10 text-[#DC2626] font-medium' 
+                      className={`w-full text-left p-3 rounded-md flex items-center space-x-2 ${activeTab === 'privacy'
+                          ? 'bg-[#DC2626]/10 text-[#DC2626] font-medium'
                           : 'hover:bg-[#F8FAFC] text-[#2C3E50]'
-                      }`}
+                        }`}
                     >
                       <Shield className={`h-5 w-5 ${activeTab === 'privacy' ? 'text-[#DC2626]' : 'text-[#7F8C8D]'}`} />
                       <span>Privacy Controls</span>
                     </button>
-                    
-                    <button 
+
+                    <button
                       onClick={() => setActiveTab('security')}
-                      className={`w-full text-left p-3 rounded-md flex items-center space-x-2 ${
-                        activeTab === 'security' 
-                          ? 'bg-[#DC2626]/10 text-[#DC2626] font-medium' 
+                      className={`w-full text-left p-3 rounded-md flex items-center space-x-2 ${activeTab === 'security'
+                          ? 'bg-[#DC2626]/10 text-[#DC2626] font-medium'
                           : 'hover:bg-[#F8FAFC] text-[#2C3E50]'
-                      }`}
+                        }`}
                     >
                       <Lock className={`h-5 w-5 ${activeTab === 'security' ? 'text-[#DC2626]' : 'text-[#7F8C8D]'}`} />
                       <span>Security</span>
                     </button>
-                    
-                    <button 
+
+                    <button
                       onClick={() => setActiveTab('data')}
-                      className={`w-full text-left p-3 rounded-md flex items-center space-x-2 ${
-                        activeTab === 'data' 
-                          ? 'bg-[#DC2626]/10 text-[#DC2626] font-medium' 
+                      className={`w-full text-left p-3 rounded-md flex items-center space-x-2 ${activeTab === 'data'
+                          ? 'bg-[#DC2626]/10 text-[#DC2626] font-medium'
                           : 'hover:bg-[#F8FAFC] text-[#2C3E50]'
-                      }`}
+                        }`}
                     >
                       <Download className={`h-5 w-5 ${activeTab === 'data' ? 'text-[#DC2626]' : 'text-[#7F8C8D]'}`} />
                       <span>Data Management</span>
@@ -431,8 +429,8 @@ export default function SettingsPage() {
                           </div>
                         </div>
                         <label className="relative inline-flex items-center cursor-pointer">
-                          <input 
-                            type="checkbox" 
+                          <input
+                            type="checkbox"
                             checked={emailNotifications}
                             onChange={handleToggle(setEmailNotifications)}
                             className="sr-only peer"
@@ -440,7 +438,7 @@ export default function SettingsPage() {
                           <div className={`w-11 h-6 bg-[#E1E8ED] rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all ${emailNotifications ? 'bg-[#DC2626]' : ''}`}></div>
                         </label>
                       </div>
-                      
+
                       <div className="flex items-center justify-between p-3 border border-[#E1E8ED] rounded-md bg-[#F8FAFC]">
                         <div className="flex items-center space-x-3">
                           <Phone className="h-5 w-5 text-[#DC2626]" />
@@ -450,8 +448,8 @@ export default function SettingsPage() {
                           </div>
                         </div>
                         <label className="relative inline-flex items-center cursor-pointer">
-                          <input 
-                            type="checkbox" 
+                          <input
+                            type="checkbox"
                             checked={smsNotifications}
                             onChange={handleToggle(setSmsNotifications)}
                             className="sr-only peer"
@@ -459,7 +457,7 @@ export default function SettingsPage() {
                           <div className={`w-11 h-6 bg-[#E1E8ED] rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all ${smsNotifications ? 'bg-[#DC2626]' : ''}`}></div>
                         </label>
                       </div>
-                      
+
                       <div className="flex items-center justify-between p-3 border border-[#E1E8ED] rounded-md bg-[#F8FAFC]">
                         <div className="flex items-center space-x-3">
                           <Bell className="h-5 w-5 text-[#DC2626]" />
@@ -469,8 +467,8 @@ export default function SettingsPage() {
                           </div>
                         </div>
                         <label className="relative inline-flex items-center cursor-pointer">
-                          <input 
-                            type="checkbox" 
+                          <input
+                            type="checkbox"
                             checked={appNotifications}
                             onChange={handleToggle(setAppNotifications)}
                             className="sr-only peer"
@@ -478,7 +476,7 @@ export default function SettingsPage() {
                           <div className={`w-11 h-6 bg-[#E1E8ED] rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all ${appNotifications ? 'bg-[#DC2626]' : ''}`}></div>
                         </label>
                       </div>
-                      
+
                       <div className="flex items-center justify-between p-3 border border-[#E1E8ED] rounded-md bg-[#F8FAFC]">
                         <div className="flex items-center space-x-3">
                           <Heart className="h-5 w-5 text-[#DC2626]" />
@@ -488,8 +486,8 @@ export default function SettingsPage() {
                           </div>
                         </div>
                         <label className="relative inline-flex items-center cursor-pointer">
-                          <input 
-                            type="checkbox" 
+                          <input
+                            type="checkbox"
                             checked={emergencyAlerts}
                             onChange={handleToggle(setEmergencyAlerts)}
                             className="sr-only peer"
@@ -497,7 +495,7 @@ export default function SettingsPage() {
                           <div className={`w-11 h-6 bg-[#E1E8ED] rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all ${emergencyAlerts ? 'bg-[#DC2626]' : ''}`}></div>
                         </label>
                       </div>
-                      
+
                       <div className="flex items-center justify-between p-3 border border-[#E1E8ED] rounded-md bg-[#F8FAFC]">
                         <div className="flex items-center space-x-3">
                           <Calendar className="h-5 w-5 text-[#DC2626]" />
@@ -507,8 +505,8 @@ export default function SettingsPage() {
                           </div>
                         </div>
                         <label className="relative inline-flex items-center cursor-pointer">
-                          <input 
-                            type="checkbox" 
+                          <input
+                            type="checkbox"
                             checked={appointmentReminders}
                             onChange={handleToggle(setAppointmentReminders)}
                             className="sr-only peer"
@@ -516,7 +514,7 @@ export default function SettingsPage() {
                           <div className={`w-11 h-6 bg-[#E1E8ED] rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all ${appointmentReminders ? 'bg-[#DC2626]' : ''}`}></div>
                         </label>
                       </div>
-                      
+
                       <div className="flex items-center justify-between p-3 border border-[#E1E8ED] rounded-md bg-[#F8FAFC]">
                         <div className="flex items-center space-x-3">
                           <Droplet className="h-5 w-5 text-[#DC2626]" />
@@ -526,8 +524,8 @@ export default function SettingsPage() {
                           </div>
                         </div>
                         <label className="relative inline-flex items-center cursor-pointer">
-                          <input 
-                            type="checkbox" 
+                          <input
+                            type="checkbox"
                             checked={donationReminders}
                             onChange={handleToggle(setDonationReminders)}
                             className="sr-only peer"
@@ -547,7 +545,7 @@ export default function SettingsPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <label className="block text-[#7F8C8D]">First Name</label>
-                          <input 
+                          <input
                             type="text"
                             name="firstName"
                             value={profile.firstName}
@@ -555,10 +553,10 @@ export default function SettingsPage() {
                             className="w-full px-4 py-2 bg-[#F8FAFC] border border-[#E1E8ED] rounded-md text-[#2C3E50] focus:outline-none focus:ring-1 focus:ring-[#DC2626]"
                           />
                         </div>
-                        
+
                         <div className="space-y-2">
                           <label className="block text-[#7F8C8D]">Last Name</label>
-                          <input 
+                          <input
                             type="text"
                             name="lastName"
                             value={profile.lastName}
@@ -567,10 +565,10 @@ export default function SettingsPage() {
                           />
                         </div>
                       </div>
-                      
+
                       <div className="space-y-2">
                         <label className="block text-[#7F8C8D]">Email Address</label>
-                        <input 
+                        <input
                           type="email"
                           name="email"
                           value={profile.email}
@@ -578,10 +576,10 @@ export default function SettingsPage() {
                           className="w-full px-4 py-2 bg-[#F8FAFC] border border-[#E1E8ED] rounded-md text-[#2C3E50] focus:outline-none focus:ring-1 focus:ring-[#DC2626]"
                         />
                       </div>
-                      
+
                       <div className="space-y-2">
                         <label className="block text-[#7F8C8D]">Phone Number</label>
-                        <input 
+                        <input
                           type="tel"
                           name="phone"
                           value={profile.phone}
@@ -589,11 +587,11 @@ export default function SettingsPage() {
                           className="w-full px-4 py-2 bg-[#F8FAFC] border border-[#E1E8ED] rounded-md text-[#2C3E50] focus:outline-none focus:ring-1 focus:ring-[#DC2626]"
                         />
                       </div>
-                      
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <label className="block text-[#7F8C8D]">Blood Type</label>
-                          <select 
+                          <select
                             name="bloodType"
                             value={profile.bloodType}
                             onChange={handleProfileChange}
@@ -609,10 +607,10 @@ export default function SettingsPage() {
                             <option value="O-">O-</option>
                           </select>
                         </div>
-                        
+
                         <div className="space-y-2">
                           <label className="block text-[#7F8C8D]">Language Preference</label>
-                          <select 
+                          <select
                             name="language"
                             value={profile.language}
                             onChange={handleProfileChange}
@@ -627,9 +625,9 @@ export default function SettingsPage() {
                           </select>
                         </div>
                       </div>
-                      
+
                       <div className="flex justify-end pt-2">
-                        <button 
+                        <button
                           onClick={() => setShowPasswordModal(true)}
                           className="bg-[#DC2626] hover:bg-[#B91C1C] text-white py-2 px-4 rounded-md flex items-center space-x-2"
                         >
@@ -650,9 +648,9 @@ export default function SettingsPage() {
                         <p className="text-[#2C3E50] font-medium mb-3">Profile Visibility</p>
                         <div className="space-y-3">
                           <div className="flex items-center space-x-2">
-                            <input 
-                              type="radio" 
-                              id="public" 
+                            <input
+                              type="radio"
+                              id="public"
                               name="visibility"
                               value="public"
                               checked={profileVisibility === 'public'}
@@ -667,11 +665,11 @@ export default function SettingsPage() {
                               </div>
                             </label>
                           </div>
-                          
+
                           <div className="flex items-center space-x-2">
-                            <input 
-                              type="radio" 
-                              id="donors-only" 
+                            <input
+                              type="radio"
+                              id="donors-only"
                               name="visibility"
                               value="donors-only"
                               checked={profileVisibility === 'donors-only'}
@@ -686,11 +684,11 @@ export default function SettingsPage() {
                               </div>
                             </label>
                           </div>
-                          
+
                           <div className="flex items-center space-x-2">
-                            <input 
-                              type="radio" 
-                              id="private" 
+                            <input
+                              type="radio"
+                              id="private"
                               name="visibility"
                               value="private"
                               checked={profileVisibility === 'private'}
@@ -707,7 +705,7 @@ export default function SettingsPage() {
                           </div>
                         </div>
                       </div>
-                      
+
                       <div className="flex items-center justify-between p-4 border border-[#E1E8ED] rounded-md bg-[#F8FAFC]">
                         <div className="flex items-center space-x-3">
                           <MapPin className="h-5 w-5 text-[#DC2626]" />
@@ -717,8 +715,8 @@ export default function SettingsPage() {
                           </div>
                         </div>
                         <label className="relative inline-flex items-center cursor-pointer">
-                          <input 
-                            type="checkbox" 
+                          <input
+                            type="checkbox"
                             checked={locationSharing}
                             onChange={handleToggle(setLocationSharing)}
                             className="sr-only peer"
@@ -726,7 +724,7 @@ export default function SettingsPage() {
                           <div className={`w-11 h-6 bg-[#E1E8ED] rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all ${locationSharing ? 'bg-[#DC2626]' : ''}`}></div>
                         </label>
                       </div>
-                      
+
                       <div className="flex items-center justify-between p-4 border border-[#E1E8ED] rounded-md bg-[#F8FAFC]">
                         <div className="flex items-center space-x-3">
                           <Phone className="h-5 w-5 text-[#DC2626]" />
@@ -736,8 +734,8 @@ export default function SettingsPage() {
                           </div>
                         </div>
                         <label className="relative inline-flex items-center cursor-pointer">
-                          <input 
-                            type="checkbox" 
+                          <input
+                            type="checkbox"
                             checked={showContactInfo}
                             onChange={handleToggle(setShowContactInfo)}
                             className="sr-only peer"
@@ -745,7 +743,7 @@ export default function SettingsPage() {
                           <div className={`w-11 h-6 bg-[#E1E8ED] rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all ${showContactInfo ? 'bg-[#DC2626]' : ''}`}></div>
                         </label>
                       </div>
-                      
+
                       <div className="flex items-center justify-between p-4 border border-[#E1E8ED] rounded-md bg-[#F8FAFC]">
                         <div className="flex items-center space-x-3">
                           <Droplet className="h-5 w-5 text-[#DC2626]" />
@@ -755,8 +753,8 @@ export default function SettingsPage() {
                           </div>
                         </div>
                         <label className="relative inline-flex items-center cursor-pointer">
-                          <input 
-                            type="checkbox" 
+                          <input
+                            type="checkbox"
                             checked={showDonationHistory}
                             onChange={handleToggle(setShowDonationHistory)}
                             className="sr-only peer"
@@ -779,7 +777,7 @@ export default function SettingsPage() {
                             <p className="text-[#2C3E50] font-medium">Password</p>
                             <p className="text-[#7F8C8D] text-sm">Last changed: {security.lastPasswordChange}</p>
                           </div>
-                          <button 
+                          <button
                             onClick={() => setShowPasswordModal(true)}
                             className="px-3 py-1 bg-[#DC2626] hover:bg-[#B91C1C] text-white rounded-md text-sm flex items-center space-x-1"
                           >
@@ -788,24 +786,23 @@ export default function SettingsPage() {
                           </button>
                         </div>
                       </div>
-                      
+
                       <div className="p-4 border border-[#E1E8ED] rounded-md bg-[#F8FAFC]">
                         <div className="flex justify-between items-start">
                           <div>
                             <p className="text-[#2C3E50] font-medium">Two-Factor Authentication</p>
                             <p className="text-[#7F8C8D] text-sm">
-                              {security.twoFactorEnabled 
-                                ? 'Enabled - Your account is more secure' 
+                              {security.twoFactorEnabled
+                                ? 'Enabled - Your account is more secure'
                                 : 'Disabled - Enable for additional security'}
                             </p>
                           </div>
-                          <button 
+                          <button
                             onClick={toggleTwoFactor}
-                            className={`px-3 py-1 rounded-md text-sm flex items-center space-x-1 ${
-                              security.twoFactorEnabled 
-                                ? 'bg-green-100 text-green-600 hover:bg-green-200' 
+                            className={`px-3 py-1 rounded-md text-sm flex items-center space-x-1 ${security.twoFactorEnabled
+                                ? 'bg-green-100 text-green-600 hover:bg-green-200'
                                 : 'bg-[#DC2626] hover:bg-[#B91C1C] text-white'
-                            }`}
+                              }`}
                           >
                             {security.twoFactorEnabled ? (
                               <>
@@ -821,7 +818,7 @@ export default function SettingsPage() {
                           </button>
                         </div>
                       </div>
-                      
+
                       <div className="p-4 border border-[#E1E8ED] rounded-md bg-[#F8FAFC]">
                         <div className="flex justify-between items-start">
                           <div>
@@ -830,7 +827,7 @@ export default function SettingsPage() {
                               Permanently delete your account and all data
                             </p>
                           </div>
-                          <button 
+                          <button
                             onClick={() => setShowDeleteModal(true)}
                             className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm flex items-center space-x-1"
                           >
@@ -854,7 +851,7 @@ export default function SettingsPage() {
                             <p className="text-[#2C3E50] font-medium">Export Your Data</p>
                             <p className="text-[#7F8C8D] text-sm">Download a copy of your personal data</p>
                           </div>
-                          <button 
+                          <button
                             onClick={exportUserData}
                             className="px-4 py-2 bg-[#DC2626] hover:bg-[#B91C1C] text-white rounded-md flex items-center space-x-2"
                             disabled={exportingData}
@@ -873,14 +870,14 @@ export default function SettingsPage() {
                           </button>
                         </div>
                       </div>
-                      
+
                       <div className="p-4 border border-[#E1E8ED] rounded-md bg-[#F8FAFC]">
                         <div className="flex justify-between items-start">
                           <div>
                             <p className="text-[#2C3E50] font-medium">Delete Your Data</p>
                             <p className="text-[#7F8C8D] text-sm">Permanently remove all your personal data</p>
                           </div>
-                          <button 
+                          <button
                             onClick={() => setShowDeleteModal(true)}
                             className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-md flex items-center space-x-2"
                           >
@@ -908,7 +905,7 @@ export default function SettingsPage() {
             <form onSubmit={submitPasswordChange} className="p-4 space-y-4">
               <div className="space-y-2">
                 <label className="block text-[#7F8C8D]">Current Password</label>
-                <input 
+                <input
                   type="password"
                   name="currentPassword"
                   value={passwordData.currentPassword}
@@ -917,10 +914,10 @@ export default function SettingsPage() {
                   className="w-full px-4 py-2 bg-[#F8FAFC] border border-[#E1E8ED] rounded-md text-[#2C3E50] focus:outline-none focus:ring-1 focus:ring-[#DC2626]"
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <label className="block text-[#7F8C8D]">New Password</label>
-                <input 
+                <input
                   type="password"
                   name="newPassword"
                   value={passwordData.newPassword}
@@ -929,10 +926,10 @@ export default function SettingsPage() {
                   className="w-full px-4 py-2 bg-[#F8FAFC] border border-[#E1E8ED] rounded-md text-[#2C3E50] focus:outline-none focus:ring-1 focus:ring-[#DC2626]"
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <label className="block text-[#7F8C8D]">Confirm New Password</label>
-                <input 
+                <input
                   type="password"
                   name="confirmPassword"
                   value={passwordData.confirmPassword}
@@ -941,20 +938,20 @@ export default function SettingsPage() {
                   className="w-full px-4 py-2 bg-[#F8FAFC] border border-[#E1E8ED] rounded-md text-[#2C3E50] focus:outline-none focus:ring-1 focus:ring-[#DC2626]"
                 />
               </div>
-              
+
               {passwordError && (
                 <div className="text-red-500 text-sm">{passwordError}</div>
               )}
-              
+
               <div className="flex justify-end space-x-3 pt-2">
-                <button 
+                <button
                   type="button"
                   onClick={() => setShowPasswordModal(false)}
                   className="px-4 py-2 bg-transparent border border-[#E1E8ED] text-[#2C3E50] hover:bg-[#F8FAFC] rounded-md transition-colors"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   type="submit"
                   className="px-4 py-2 bg-[#DC2626] hover:bg-[#B91C1C] text-white rounded-md transition-colors"
                 >
@@ -965,7 +962,7 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
-      
+
       {/* Delete Account Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
@@ -979,15 +976,15 @@ export default function SettingsPage() {
                 <p className="mb-2">All your personal data, donation history, and account information will be permanently deleted.</p>
                 <p>If you proceed, you will receive a confirmation email with further instructions.</p>
               </div>
-              
+
               <div className="flex justify-end space-x-3 pt-4">
-                <button 
+                <button
                   onClick={() => setShowDeleteModal(false)}
                   className="px-4 py-2 bg-transparent border border-[#E1E8ED] text-[#2C3E50] hover:bg-[#F8FAFC] rounded-md transition-colors"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   onClick={deleteAccount}
                   className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-md transition-colors"
                 >

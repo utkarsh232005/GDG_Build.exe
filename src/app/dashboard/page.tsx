@@ -40,7 +40,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (user?.role) {
       const newUserType = user.role.toLowerCase() as 'donor' | 'recipient';
-      
+
       // Only update if it actually changed to avoid refresh loops
       if (newUserType !== userType) {
         console.log(`User role changed from ${userType} to ${newUserType}, updating...`);
@@ -58,14 +58,14 @@ export default function Dashboard() {
         setIsLoading(false);
         return;
       }
-      
+
       console.log("Starting donation fetch process with user:", user.uid);
       setIsLoading(true);
-      
+
       try {
         console.log(`Fetching donations as ${userType}...`);
         let donationData: any[] = [];
-        
+
         if (userType === 'donor') {
           // Fetch donor's own donations (including any pending ones)
           console.log("Fetching donor's donations from Firestore with UID:", user.uid);
@@ -77,7 +77,7 @@ export default function Dashboard() {
           donationData = await donationAPI.getAvailableDonations();
           console.log("Raw available donations received:", donationData);
         }
-        
+
         if (!donationData) {
           console.error("No donation data returned from API");
           donationData = [];
@@ -85,9 +85,9 @@ export default function Dashboard() {
           console.error("Invalid donation data format (not an array):", donationData);
           donationData = [];
         }
-        
+
         console.log("Processing donation data of length:", donationData.length);
-        
+
         // Transform API data to match our frontend model with better error handling
         const transformedDonations = donationData
           .filter(donation => donation !== null && donation !== undefined)
@@ -97,7 +97,7 @@ export default function Dashboard() {
               let status = (donation.status || 'available').toLowerCase();
               // Ensure we normalize 'requested' to 'pending' for consistency
               if (status === 'requested') status = 'pending';
-              
+
               return {
                 id: `donation-${donation.id || 'unknown'}`,
                 donorName: donation.donorName || 'Anonymous',
@@ -121,7 +121,7 @@ export default function Dashboard() {
             }
           })
           .filter((item): item is typeof item => item !== null) as DonationListingData[];
-        
+
         console.log("Processed transformed donations:", transformedDonations);
         setDonations(transformedDonations);
       } catch (error) {
@@ -148,7 +148,7 @@ export default function Dashboard() {
 
   // Load appointments from localStorage if available
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  
+
   useEffect(() => {
     const savedAppointments = localStorage.getItem('bloodconnect_appointments');
     if (savedAppointments) {
@@ -165,38 +165,38 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchNotifications = async () => {
       if (!user) return;
-      
+
       try {
         console.log("Fetching notifications for user:", user.uid);
         const notificationData = await donationAPI.getNotifications();
-        
+
         // Only update state if we have valid data
         if (Array.isArray(notificationData)) {
           setUserNotifications(notificationData);
-          
+
           // Check if there are unread notifications
           const unreadCount = notificationData.filter(notification => {
             if (!notification) return false;
             return typeof notification === 'object' && 'read' in notification && !notification.read;
           }).length;
-          
+
           if (unreadCount > 0) {
             console.log(`User has ${unreadCount} unread notifications`);
           }
         }
       } catch (error: any) {
         console.error('Error fetching notifications:', error);
-        
+
         // Handle index errors gracefully
         if (error.message && error.message.includes('requires an index')) {
           toast.error(
-            'We\'re setting up notifications. Please try again in a few minutes.', 
+            'We\'re setting up notifications. Please try again in a few minutes.',
             { duration: 4000 }
           );
         }
       }
     };
-    
+
     // Only fetch if user is logged in
     if (user?.uid) {
       fetchNotifications();
@@ -277,23 +277,23 @@ export default function Dashboard() {
 
   const handleDonationSubmit = (data: DonationFormData) => {
     console.log('Donation scheduled:', data);
-    
-    const formattedDate = new Date(data.date).toLocaleDateString('en-US', { 
-      month: 'long', 
-      day: 'numeric', 
-      year: 'numeric' 
+
+    const formattedDate = new Date(data.date).toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric'
     });
-    
+
     if (appointmentToReschedule) {
-      setAppointments(prev => 
-        prev.map(apt => 
-          apt.id === appointmentToReschedule.id 
-            ? { 
-                ...apt, 
-                date: formattedDate, 
-                time: data.time, 
-                location: data.location 
-              } 
+      setAppointments(prev =>
+        prev.map(apt =>
+          apt.id === appointmentToReschedule.id
+            ? {
+              ...apt,
+              date: formattedDate,
+              time: data.time,
+              location: data.location
+            }
             : apt
         )
       );
@@ -306,11 +306,11 @@ export default function Dashboard() {
         location: data.location,
         status: 'pending'
       };
-      
+
       setAppointments(prev => [...prev, newAppointment]);
       alert(`Donation scheduled!\nDate: ${formattedDate}\nTime: ${data.time}\nLocation: ${data.location}`);
     }
-    
+
     setAppointmentToReschedule(null);
   };
 
@@ -321,7 +321,7 @@ export default function Dashboard() {
   const deduplicateDonations = (donationsList: DonationListingData[]): DonationListingData[] => {
     const uniqueDonations: DonationListingData[] = [];
     const seenIds = new Set<string>();
-    
+
     for (const donation of donationsList) {
       if (!seenIds.has(donation.id)) {
         seenIds.add(donation.id);
@@ -330,16 +330,16 @@ export default function Dashboard() {
         console.log(`Skipping duplicate donation with ID: ${donation.id}`);
       }
     }
-    
+
     return uniqueDonations;
   };
 
   const handleListingSubmit = async (donationData: DonationListingData) => {
     // First close the modal to prevent multiple submissions
     setShowListingModal(false);
-    
+
     const toastId = toast.loading('Creating new donation listing...');
-    
+
     try {
       // Call the API to create the donation
       await donationAPI.createDonation({
@@ -350,24 +350,24 @@ export default function Dashboard() {
         additionalInfo: donationData.additionalInfo,
         status: 'available'
       });
-      
+
       // Update toast to success
       toast.success('Donation listed successfully!', { id: toastId });
-      
+
       // Wait before refreshing to ensure database consistency
       setTimeout(() => {
         refreshUserDataAndDonations();
       }, 1000);
     } catch (error: any) {
       console.error('Error saving donation:', error);
-      
+
       // Handle index errors gracefully
       if (error.message && error.message.includes('requires an index')) {
         toast.error(
           'Your donation was saved, but we\'re setting up the database. Please wait a moment and refresh.',
           { id: toastId, duration: 5000 }
         );
-        
+
         // Try refreshing after a delay to see if indexes are ready
         setTimeout(() => refreshUserDataAndDonations(), 5000);
       } else {
@@ -379,7 +379,7 @@ export default function Dashboard() {
   const handleDonationStatusChange = async (donationId: string, newStatus: 'available' | 'pending' | 'completed') => {
     try {
       const id = donationId.split('-')[1];
-      
+
       toast.loading('Updating donation status...', { id: 'status-toast' });
 
       if (newStatus === 'completed') {
@@ -392,7 +392,7 @@ export default function Dashboard() {
         refreshUserDataAndDonations();
         toast.success('Status updated successfully', { id: 'status-toast' });
       }, 1000);
-      
+
     } catch (error) {
       console.error('Error updating donation status:', error);
       toast.error('Failed to update status', { id: 'status-toast' });
@@ -402,15 +402,15 @@ export default function Dashboard() {
   const handleRequestDonation = async (donationId: string) => {
     try {
       const id = donationId.split('-')[1];
-      
+
       toast.loading('Requesting donation...', { id: 'request-toast' });
       await donationAPI.requestDonation(id);
-      
+
       setTimeout(() => {
         refreshUserDataAndDonations();
         toast.success('Request sent successfully', { id: 'request-toast' });
       }, 1000);
-      
+
     } catch (error) {
       console.error('Error requesting donation:', error);
       toast.error('Failed to request donation', { id: 'request-toast' });
@@ -420,15 +420,15 @@ export default function Dashboard() {
   const handleAcceptDonationRequest = async (donationId: string, recipientId: string) => {
     try {
       const id = donationId.split('-')[1];
-      
+
       toast.loading('Accepting request...', { id: 'accept-toast' });
       await donationAPI.acceptDonationRequest(id, recipientId);
-      
+
       setTimeout(() => {
         refreshUserDataAndDonations();
         toast.success('Request accepted successfully', { id: 'accept-toast' });
       }, 1000);
-      
+
     } catch (error) {
       console.error('Error accepting donation request:', error);
       toast.error('Failed to accept request', { id: 'accept-toast' });
@@ -438,15 +438,15 @@ export default function Dashboard() {
   const handleRejectDonationRequest = async (donationId: string, recipientId: string) => {
     try {
       const id = donationId.split('-')[1];
-      
+
       toast.loading('Rejecting request...', { id: 'reject-toast' });
       await donationAPI.rejectDonationRequest(id, recipientId);
-      
+
       setTimeout(() => {
         refreshUserDataAndDonations();
         toast.success('Request rejected successfully', { id: 'reject-toast' });
       }, 1000);
-      
+
     } catch (error) {
       console.error('Error rejecting donation request:', error);
       toast.error('Failed to reject request', { id: 'reject-toast' });
@@ -458,15 +458,15 @@ export default function Dashboard() {
       console.log("Cannot refresh - no user logged in");
       return;
     }
-    
+
     setIsLoading(true);
     const toastId = toast.loading('Refreshing data...');
-    
+
     try {
       // First refresh user data from Firestore
       console.log("Fetching latest user profile...");
       const userData = await userAPI.getProfile();
-      
+
       // Make sure the userType state is updated based on the latest user role
       if (userData && typeof userData === 'object' && 'role' in userData) {
         const newRole = (userData.role as string).toLowerCase() as 'donor' | 'recipient';
@@ -474,10 +474,10 @@ export default function Dashboard() {
           setUserType(newRole);
         }
       }
-      
+
       // Then reload the donations based on current user type
       let donationData: any[] = [];
-      
+
       try {
         if (userType === 'donor') {
           donationData = await donationAPI.getMyDonations();
@@ -488,11 +488,11 @@ export default function Dashboard() {
         console.error("API error fetching donations:", apiError);
         donationData = [];
       }
-      
+
       if (!donationData || !Array.isArray(donationData)) {
         donationData = [];
       }
-      
+
       // Transform and update the donations state with deduplication
       const transformedDonations = donationData
         .filter(donation => donation !== null && donation !== undefined)
@@ -500,7 +500,7 @@ export default function Dashboard() {
           try {
             let status = (donation.status || 'available').toLowerCase();
             if (status === 'requested') status = 'pending';
-            
+
             return {
               id: `donation-${donation.id || 'unknown'}`,
               donorName: donation.donorName || 'Anonymous',
@@ -524,11 +524,11 @@ export default function Dashboard() {
           }
         })
         .filter((item): item is NonNullable<typeof item> => item !== null);
-      
+
       // Deduplicate the donations
       const uniqueDonations = deduplicateDonations(transformedDonations);
       console.log(`Filtered ${transformedDonations.length - uniqueDonations.length} duplicate donations`);
-      
+
       setDonations(uniqueDonations);
       toast.success('Data refreshed successfully', { id: toastId });
     } catch (error) {
@@ -541,15 +541,15 @@ export default function Dashboard() {
 
   useEffect(() => {
     let refreshTimeout: NodeJS.Timeout | null = null;
-    
+
     const handleRefreshEvent = () => {
       console.log("Donation data changed event received, scheduling refresh...");
-      
+
       // Clear any existing timeout to debounce multiple rapid events
       if (refreshTimeout) {
         clearTimeout(refreshTimeout);
       }
-      
+
       // Schedule a new refresh after a short delay
       refreshTimeout = setTimeout(() => {
         console.log("Executing debounced refresh");
@@ -557,9 +557,9 @@ export default function Dashboard() {
         refreshTimeout = null;
       }, 500);
     };
-    
+
     window.addEventListener('donation-data-changed', handleRefreshEvent);
-    
+
     return () => {
       window.removeEventListener('donation-data-changed', handleRefreshEvent);
       if (refreshTimeout) {
@@ -573,7 +573,7 @@ export default function Dashboard() {
     refreshUserDataAndDonations();
   };
 
-  const userDonations = userType === 'donor' 
+  const userDonations = userType === 'donor'
     ? donations // Show all donations for donors, including pending ones
     : donations.filter(donation => donation.status === 'available'); // Only show available for recipients
 
@@ -581,7 +581,7 @@ export default function Dashboard() {
     totalDonations: donations.filter(d => d.status === 'completed').length,
     listedDonations: donations.filter(d => d.status === 'available').length
   };
-  
+
   const recipientStats = {
     totalReceived: donations.filter(d => d.status === 'completed').length,
     availableDonors: donations.filter(d => d.status === 'available').length
@@ -590,7 +590,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <Toaster position="top-right" />
-      
+
       <div className="flex h-screen">
         <Sidebar open={open} setOpen={setOpen}>
           <SidebarBody className="justify-between gap-10">
@@ -605,7 +605,9 @@ export default function Dashboard() {
             <div>
               <SidebarLink
                 link={{
-                  label: "John Doe",
+                  label: userData?.firstName && userData?.lastName
+                    ? `${userData.firstName} ${userData.lastName}`
+                    : user?.email?.split('@')[0] || "User",
                   href: "/profile",
                   icon: (
                     <div className="h-7 w-7 shrink-0 rounded-full bg-[#DC2626]/20 flex items-center justify-center">
@@ -624,7 +626,7 @@ export default function Dashboard() {
               <h2 className="text-3xl font-bold text-gray-900">
                 Welcome to Your <span className="text-[#DC2626]">Dashboard</span>
               </h2>
-              
+
               <div className="relative">
                 <Bell className="h-6 w-6 text-[#DC2626] cursor-pointer" />
                 <span className="absolute -top-1 -right-1 bg-[#DC2626] text-white text-xs w-4 h-4 flex items-center justify-center rounded-full">
@@ -644,7 +646,7 @@ export default function Dashboard() {
                       {userType === 'donor' ? 'Total Donations' : 'Total Received'}
                     </p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {userType === 'donor' 
+                      {userType === 'donor'
                         ? donorStats.totalDonations
                         : recipientStats.totalReceived}
                     </p>
@@ -678,8 +680,8 @@ export default function Dashboard() {
                   <AlertCircle className="h-6 w-6 text-[#DC2626]" />
                   <div>
                     <p className="text-gray-600 text-sm">
-                      {userType === 'donor' 
-                        ? 'Listed Donations' 
+                      {userType === 'donor'
+                        ? 'Listed Donations'
                         : 'Available Donors'}
                     </p>
                     <p className="text-2xl font-bold text-gray-900">
@@ -697,9 +699,9 @@ export default function Dashboard() {
                 <h3 className="text-xl font-semibold text-gray-900">
                   {userType === 'donor' ? 'Your Listed Donations' : 'Available Donations'}
                 </h3>
-                
+
                 <div className="flex space-x-2">
-                  <button 
+                  <button
                     onClick={() => refreshUserDataAndDonations()}
                     className="bg-white hover:bg-gray-100 text-gray-900 border border-red-100 py-2 px-4 rounded-md transition-colors flex items-center"
                     disabled={isLoading}
@@ -708,15 +710,15 @@ export default function Dashboard() {
                       <div className="h-4 w-4 border-2 border-[#DC2626] border-t-transparent rounded-full animate-spin mr-2"></div>
                     ) : (
                       <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M4 4V9H4.58152M19.9381 11C19.446 7.05369 16.0796 4 12 4C8.64262 4 5.76829 6.06817 4.58152 9M4.58152 9H9M20 20V15H19.4185M19.4185 15C18.2317 17.9318 15.3574 20 12 20C7.92038 20 4.55399 16.9463 4.06189 13M19.4185 15H15" 
-                          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M4 4V9H4.58152M19.9381 11C19.446 7.05369 16.0796 4 12 4C8.64262 4 5.76829 6.06817 4.58152 9M4.58152 9H9M20 20V15H19.4185M19.4185 15C18.2317 17.9318 15.3574 20 12 20C7.92038 20 4.55399 16.9463 4.06189 13M19.4185 15H15"
+                          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     )}
                     Refresh
                   </button>
-                  
+
                   {userType === 'donor' && (
-                    <button 
+                    <button
                       onClick={handleListDonation}
                       className="bg-[#DC2626] hover:bg-[#B91C1C] text-white py-2 px-4 rounded-md transition-colors flex items-center"
                     >
@@ -726,7 +728,7 @@ export default function Dashboard() {
                   )}
                 </div>
               </div>
-              
+
               {isLoading ? (
                 <div className="p-12 flex flex-col items-center justify-center bg-white border border-red-100 rounded-lg">
                   <div className="h-12 w-12 border-4 border-[#DC2626] border-t-transparent rounded-full animate-spin mb-4"></div>
@@ -737,7 +739,7 @@ export default function Dashboard() {
                   <Heart className="h-12 w-12 mx-auto text-[#DC2626] mb-4" />
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">No donations found</h3>
                   <p className="text-gray-600 mb-6">
-                    {userType === 'donor' 
+                    {userType === 'donor'
                       ? 'You have not listed any donations yet. Click the "List Donation" button to get started.'
                       : 'There are no blood donations available at the moment. Please check back later.'}
                   </p>
@@ -746,15 +748,15 @@ export default function Dashboard() {
                     className="px-4 py-2 bg-[#DC2626] hover:bg-[#B91C1C] text-white rounded-md transition-colors inline-flex items-center"
                   >
                     <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M4 4V9H4.58152M19.9381 11C19.446 7.05369 16.0796 4 12 4C8.64262 4 5.76829 6.06817 4.58152 9M4.58152 9H9M20 20V15H19.4185M19.4185 15C18.2317 17.9318 15.3574 20 12 20C7.92038 20 4.55399 16.9463 4.06189 13M19.4185 15H15" 
-                        stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M4 4V9H4.58152M19.9381 11C19.446 7.05369 16.0796 4 12 4C8.64262 4 5.76829 6.06817 4.58152 9M4.58152 9H9M20 20V15H19.4185M19.4185 15C18.2317 17.9318 15.3574 20 12 20C7.92038 20 4.55399 16.9463 4.06189 13M19.4185 15H15"
+                        stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                     Retry Loading Donations
                   </button>
                 </div>
               ) : (
-                <DonationsList 
-                  donations={userDonations} 
+                <DonationsList
+                  donations={userDonations}
                   userType={userType}
                   onStatusChange={handleDonationStatusChange}
                   onRequestDonation={handleRequestDonation}
@@ -769,19 +771,19 @@ export default function Dashboard() {
                 <div className="p-6 rounded-lg bg-white border border-red-100 shadow-sm">
                   <h3 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <button 
+                    <button
                       onClick={userType === 'donor' ? handleScheduleDonation : handleRequestDonation.bind(null, donations.find(d => d.status === 'available')?.id || '')}
                       className="bg-[#DC2626] hover:bg-[#B91C1C] text-white py-3 px-4 rounded-md transition-colors flex items-center justify-center space-x-2">
                       <Calendar className="h-5 w-5" />
                       <span>{userType === 'donor' ? 'Schedule Donation' : 'Find Donors'}</span>
                     </button>
-                    <button 
+                    <button
                       onClick={handleUpdateProfile}
                       className="bg-transparent border border-[#DC2626] text-[#DC2626] hover:bg-[#DC2626]/10 py-3 px-4 rounded-md transition-colors flex items-center justify-center space-x-2">
                       <User className="h-5 w-5" />
                       <span>Update Profile</span>
                     </button>
-                    <button 
+                    <button
                       onClick={handleViewBloodRequests}
                       className="bg-transparent border border-[#DC2626] text-[#DC2626] hover:bg-[#DC2626]/10 py-3 px-4 rounded-md transition-colors flex items-center justify-center space-x-2">
                       <Droplet className="h-5 w-5" />
@@ -808,14 +810,13 @@ export default function Dashboard() {
                             <p className="text-sm text-gray-600 mt-1">{appointment.location}</p>
                           </div>
                           <div className="flex flex-col space-y-2">
-                            <span className={`text-xs px-2 py-1 rounded-full ${
-                              appointment.status === 'confirmed' 
-                                ? 'bg-green-100 text-green-700' 
+                            <span className={`text-xs px-2 py-1 rounded-full ${appointment.status === 'confirmed'
+                                ? 'bg-green-100 text-green-700'
                                 : 'bg-yellow-100 text-yellow-700'
-                            }`}>
+                              }`}>
                               {appointment.status === 'confirmed' ? 'Confirmed' : 'Pending'}
                             </span>
-                            <button 
+                            <button
                               onClick={() => handleRescheduleAppointment(appointment)}
                               className="flex items-center text-xs text-[#DC2626] hover:underline"
                             >
@@ -830,8 +831,8 @@ export default function Dashboard() {
                         <Calendar className="h-12 w-12 mx-auto text-gray-400 mb-3" />
                         <h3 className="text-lg font-semibold text-gray-900">No upcoming appointments</h3>
                         <p className="text-gray-600 mt-1">
-                          {userType === 'donor' 
-                            ? 'Schedule a donation to get started' 
+                          {userType === 'donor'
+                            ? 'Schedule a donation to get started'
                             : 'Request a donation when you need blood'}
                         </p>
                       </div>
@@ -852,13 +853,12 @@ export default function Dashboard() {
                     {userNotifications.length > 0 ? (
                       userNotifications.slice(0, 3).map((notification) => (
                         <div key={notification.id || Math.random()} className="flex items-start space-x-4 p-4 rounded-md bg-gray-50 border border-red-100">
-                          <div className={`flex-shrink-0 p-2 rounded-md ${
-                            notification.type === 'request' 
-                              ? 'bg-blue-100' 
-                              : notification.type === 'accepted' 
-                                ? 'bg-green-100' 
+                          <div className={`flex-shrink-0 p-2 rounded-md ${notification.type === 'request'
+                              ? 'bg-blue-100'
+                              : notification.type === 'accepted'
+                                ? 'bg-green-100'
                                 : 'bg-gray-100'
-                          }`}>
+                            }`}>
                             {notification.type === 'request' ? (
                               <Heart className="h-5 w-5 text-blue-600" />
                             ) : notification.type === 'accepted' ? (
@@ -871,8 +871,8 @@ export default function Dashboard() {
                             <p className="text-gray-900 font-medium">{notification.title || 'Notification'}</p>
                             <p className="text-gray-600">{notification.message || ''}</p>
                             <p className="text-xs text-gray-500 mt-1">
-                              {notification.createdAt?.toDate ? 
-                                new Date(notification.createdAt.toDate()).toLocaleString() : 
+                              {notification.createdAt?.toDate ?
+                                new Date(notification.createdAt.toDate()).toLocaleString() :
                                 typeof notification.createdAt === 'string' ?
                                   new Date(notification.createdAt).toLocaleString() :
                                   'Unknown date'}
@@ -893,7 +893,7 @@ export default function Dashboard() {
                       </div>
                     )}
                     {userNotifications.length > 0 && (
-                      <button 
+                      <button
                         className="w-full mt-2 bg-transparent border border-red-100 text-gray-900 hover:bg-gray-50 py-2 rounded-md transition-colors"
                         onClick={() => router.push('/notifications')}
                       >
@@ -906,22 +906,22 @@ export default function Dashboard() {
                 <div className="p-6 rounded-lg bg-white border border-red-100 shadow-sm">
                   <h3 className="text-xl font-semibold text-gray-900 mb-4">Direct Actions</h3>
                   <div className="space-y-3">
-                    <button 
+                    <button
                       onClick={userType === 'donor' ? handleDonateNow : handleRequestDonation.bind(null, donations.find(d => d.status === 'available')?.id || '')}
                       className="w-full bg-[#DC2626] hover:bg-[#B91C1C] text-white py-3 rounded-md transition-colors">
                       {userType === 'donor' ? 'Donate Now' : 'Request Blood'}
                     </button>
-                    <button 
+                    <button
                       onClick={() => handleRescheduleAppointment()}
                       className="w-full bg-transparent border border-[#DC2626] text-[#DC2626] hover:bg-[#DC2626]/10 py-3 rounded-md transition-colors">
                       {userType === 'donor' ? 'Reschedule Appointment' : 'View Request Status'}
                     </button>
-                    <button 
+                    <button
                       onClick={handleViewBloodBanks}
                       className="w-full bg-transparent border border-red-100 text-gray-900 hover:bg-gray-50 py-3 rounded-md transition-colors">
                       View Blood Banks
                     </button>
-                    <button 
+                    <button
                       onClick={handleResetData}
                       className="w-full bg-transparent border border-red-200 text-red-600 hover:bg-red-50 py-3 rounded-md transition-colors">
                       Reset Donation Data
@@ -934,7 +934,7 @@ export default function Dashboard() {
         </main>
       </div>
 
-      <DonationScheduleModal 
+      <DonationScheduleModal
         isOpen={showDonationModal}
         onClose={() => {
           setShowDonationModal(false);
