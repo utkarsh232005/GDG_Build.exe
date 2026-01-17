@@ -228,7 +228,6 @@ const DonationListingForm = ({ isOpen, onClose, onSubmit }: DonationListingFormP
       }
 
       // First clear the form to prevent duplicate submissions if user clicks multiple times
-      // First clear the form to prevent duplicate submissions if user clicks multiple times
       setFormData(INITIAL_FORM_STATE);
 
       // Close the modal immediately before API call
