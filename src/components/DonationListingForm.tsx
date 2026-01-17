@@ -137,10 +137,6 @@ const DonationListingForm = ({ isOpen, onClose, onSubmit }: DonationListingFormP
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
-  useEffect(() => {
-    console.log("DonationListingForm mounted - V2");
-  }, []);
-
   const handleBooleanChange = (name: string, value: boolean) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) {
