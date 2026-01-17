@@ -8,6 +8,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '@/lib/auth-context';
 import dynamic from 'next/dynamic';
 import { useJsApiLoader } from '@react-google-maps/api';
+import { toast, Toaster } from 'react-hot-toast';
 
 // Dynamically import GoogleMap to avoid SSR issues
 const GoogleMapComponent = dynamic(() => import('@/components/GoogleMap'), {
@@ -49,6 +50,7 @@ export default function BloodBanksPage() {
   const [bloodBanks, setBloodBanks] = useState<BloodBank[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<{ title: string, message: string } | null>(null);
 
   const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
@@ -63,50 +65,94 @@ export default function BloodBanksPage() {
     const R = 6371; // Radius of the earth in km
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lng2 - lng1) * Math.PI / 180;
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-      Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const distance = R * c;
     return distance < 1 ? `${Math.round(distance * 1000)} m` : `${distance.toFixed(1)} km`;
   };
 
+  // Mock data for fallback
+  const mockBloodBanks: BloodBank[] = [
+    {
+      id: 'mock-1',
+      name: 'City Red Cross Blood Center',
+      address: '123 Healthcare Blvd, Downtown',
+      phone: '(555) 123-4567',
+      hours: 'Open Now',
+      distance: '1.2 km',
+      rating: 4.5,
+      bloodTypes: ['A+', 'O+', 'B-'],
+      position: { lat: 28.6139, lng: 77.2090 }, // Near Delhi
+      isOpen: true,
+    },
+    {
+      id: 'mock-2',
+      name: 'LifeSaver Donation Clinic',
+      address: '45 Medical Park Dr, Westside',
+      phone: '(555) 987-6543',
+      hours: 'Closes at 5 PM',
+      distance: '3.5 km',
+      rating: 4.8,
+      bloodTypes: ['AB+', 'O-', 'A+'],
+      position: { lat: 28.6239, lng: 77.2190 },
+      isOpen: true,
+    },
+    {
+      id: 'mock-3',
+      name: 'Community Hospital Blood Bank',
+      address: '789 Community Rd, North Hills',
+      phone: '(555) 555-5555',
+      hours: '24 Hours',
+      distance: '5.1 km',
+      rating: 4.2,
+      bloodTypes: ['All types'],
+      position: { lat: 28.6039, lng: 77.1990 },
+      isOpen: true,
+    }
+  ];
+
   // Fetch nearby blood banks using Google Places API
-  const fetchNearbyBloodBanks = useCallback(async (location: { lat: number; lng: number }) => {
+  const fetchNearbyBloodBanks = useCallback(async (location: { lat: number; lng: number }, radius: number = 10000) => {
     if (!isLoaded || !window.google) {
       console.log('Google Maps not loaded yet');
       return;
     }
 
     setIsLoading(true);
-    
+    setApiError(null);
+
     try {
       const service = new google.maps.places.PlacesService(document.createElement('div'));
-      
+
       const request: google.maps.places.PlaceSearchRequest = {
         location: new google.maps.LatLng(location.lat, location.lng),
-        radius: 10000, // 10km radius
-        keyword: 'blood bank blood donation center',
-        type: 'hospital' as any, // Also search in hospitals
+        radius: radius,
+        keyword: 'blood bank', // Simplified keyword for better results
+        type: 'health' as any, // Broader type
       };
 
+      console.log(`Searching for blood banks with radius: ${radius}m`);
+
       service.nearbySearch(request, (results, status) => {
-        if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+        if (status === google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
+          console.log(`Found ${results.length} blood banks`);
           const banks: BloodBank[] = results.map((place, index) => {
             const placeLocation = place.geometry?.location;
             const lat = placeLocation?.lat() || location.lat;
             const lng = placeLocation?.lng() || location.lng;
-            
-            // Generate random blood types for demo (in real app, this would come from your database)
+
+            // Randomly assign blood types (in a real app, this would come from a backend)
             const allBloodTypes = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
             const randomBloodTypes = allBloodTypes.filter(() => Math.random() > 0.3);
-            
+
             return {
               id: place.place_id || `bank-${index}`,
               name: place.name || 'Unknown Blood Bank',
               address: place.vicinity || 'Address not available',
-              phone: '', // Will be fetched with getDetails if needed
+              phone: '', // Detailed info would need getDetails
               hours: place.opening_hours?.isOpen?.() ? 'Open Now' : 'Hours not available',
               distance: calculateDistance(location.lat, location.lng, lat, lng),
               rating: place.rating || 0,
@@ -115,23 +161,53 @@ export default function BloodBanksPage() {
               isOpen: place.opening_hours?.isOpen?.(),
             };
           });
-          
+
           // Sort by distance
           banks.sort((a, b) => {
             const distA = parseFloat(a.distance);
             const distB = parseFloat(b.distance);
             return distA - distB;
           });
-          
+
           setBloodBanks(banks);
+          setIsLoading(false);
         } else {
           console.log('Places API returned status:', status);
-          setBloodBanks([]);
+
+          // Retry with larger radius if no results and radius is small
+          if ((status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS || (results && results.length === 0)) && radius < 50000) {
+            console.log("No results found nearby, expanding search to city-wide (50km)...");
+            fetchNearbyBloodBanks(location, 50000); // Retry with 50km
+            return;
+          }
+
+          if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+            toast.error('No blood banks found even in the wider area.');
+            setBloodBanks([]);
+          } else if (status === 'REQUEST_DENIED') {
+            setApiError({
+              title: 'API Configuration Error',
+              message: 'Google Maps API key is invalid or unauthorized. Please check that "Places API" is enabled in Google Cloud Console and billing is active.'
+            });
+            toast.error('Google Maps API Error: Request Denied');
+          } else {
+            const errorMsg = `Maps API Error: ${status}`;
+            toast.error(errorMsg);
+            setApiError({
+              title: 'Search Failed',
+              message: `Google Maps returned status: ${status}. Please try again later.`
+            });
+          }
+          setIsLoading(false);
         }
-        setIsLoading(false);
       });
     } catch (error) {
       console.error('Error fetching blood banks:', error);
+      toast.error('Failed to connect to Maps API.');
+      setApiError({
+        title: 'Connection Error',
+        message: 'Could not connect to Google Maps API. Please check your internet connection.'
+      });
       setIsLoading(false);
     }
   }, [isLoaded]);
@@ -139,7 +215,7 @@ export default function BloodBanksPage() {
   // Get user's location
   const getUserLocation = useCallback(() => {
     setLocationError(null);
-    
+
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -211,6 +287,7 @@ export default function BloodBanksPage() {
 
   return (
     <div className="min-h-screen bg-[#F5F7FA] text-[#2C3E50]">
+      <Toaster position="top-right" />
       <div className="flex h-screen overflow-hidden">
         <Sidebar open={open} setOpen={setOpen}>
           <SidebarBody className="justify-between gap-10">
@@ -250,15 +327,15 @@ export default function BloodBanksPage() {
                   Nearby <span className="text-[#DC2626]">Blood Banks</span>
                 </h2>
                 <p className="mt-2 text-[#7F8C8D]">
-                  {userLocation 
-                    ? `Showing blood banks near your location` 
+                  {userLocation
+                    ? `Showing blood banks near your location`
                     : 'Getting your location...'}
                 </p>
                 {locationError && (
                   <p className="text-sm text-orange-600 mt-1">{locationError}</p>
                 )}
               </div>
-              
+
               {/* Action Buttons */}
               <div className="flex gap-2">
                 <button
@@ -320,11 +397,10 @@ export default function BloodBanksPage() {
                   <button
                     key={type.id}
                     onClick={() => setMapType(type.id)}
-                    className={`px-3 py-2 text-sm font-medium transition-colors ${
-                      mapType === type.id
-                        ? 'bg-[#DC2626] text-white'
-                        : 'bg-white text-[#2C3E50] hover:bg-gray-50'
-                    }`}
+                    className={`px-3 py-2 text-sm font-medium transition-colors ${mapType === type.id
+                      ? 'bg-[#DC2626] text-white'
+                      : 'bg-white text-[#2C3E50] hover:bg-gray-50'
+                      }`}
                     title={type.label}
                   >
                     <span className="mr-1">{type.icon}</span>
@@ -368,16 +444,31 @@ export default function BloodBanksPage() {
                     <div className="h-10 w-10 border-4 border-[#DC2626] border-t-transparent rounded-full animate-spin mb-4"></div>
                     <p className="text-[#7F8C8D]">Finding nearby blood banks...</p>
                   </div>
+                ) : apiError ? (
+                  <div className="p-6 bg-red-50 rounded-lg border border-red-200">
+                    <div className="flex items-center gap-2 mb-2 text-red-700 font-semibold">
+                      <MapPin className="h-5 w-5" />
+                      <h3>{apiError.title}</h3>
+                    </div>
+                    <p className="text-sm text-red-600 mb-4">
+                      {apiError.message}
+                    </p>
+                    <button
+                      onClick={handleRefresh}
+                      className="text-sm bg-white border border-red-300 text-red-700 px-3 py-1.5 rounded hover:bg-red-50 transition-colors"
+                    >
+                      Retry Search
+                    </button>
+                  </div>
                 ) : filteredBanks.length > 0 ? (
                   filteredBanks.map((bank) => (
                     <div
                       key={bank.id}
                       onClick={() => setSelectedBank(bank)}
-                      className={`p-5 rounded-lg bg-white border transition-all cursor-pointer hover:shadow-md ${
-                        selectedBank?.id === bank.id
-                          ? 'border-[#DC2626] shadow-md ring-1 ring-[#DC2626]/20'
-                          : 'border-[#E1E8ED] hover:border-[#DC2626]/50'
-                      }`}
+                      className={`p-5 rounded-lg bg-white border transition-all cursor-pointer hover:shadow-md ${selectedBank?.id === bank.id
+                        ? 'border-[#DC2626] shadow-md ring-1 ring-[#DC2626]/20'
+                        : 'border-[#E1E8ED] hover:border-[#DC2626]/50'
+                        }`}
                     >
                       <div className="flex justify-between items-start mb-3">
                         <div>
@@ -394,11 +485,10 @@ export default function BloodBanksPage() {
                             <span>{bank.distance}</span>
                           </div>
                         </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          bank.isOpen 
-                            ? 'bg-green-100 text-green-700' 
-                            : 'bg-gray-100 text-gray-600'
-                        }`}>
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${bank.isOpen
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-100 text-gray-600'
+                          }`}>
                           {bank.isOpen ? 'Open Now' : bank.hours}
                         </span>
                       </div>
@@ -460,7 +550,7 @@ export default function BloodBanksPage() {
                     <MapPin className="h-12 w-12 mx-auto text-[#7F8C8D] mb-3" />
                     <h3 className="text-lg font-semibold text-[#2C3E50]">No blood banks found</h3>
                     <p className="text-[#7F8C8D] mt-1">
-                      {searchQuery || bloodTypeFilter !== 'all' 
+                      {searchQuery || bloodTypeFilter !== 'all'
                         ? 'Try adjusting your search or filters'
                         : 'No blood banks found in your area'}
                     </p>

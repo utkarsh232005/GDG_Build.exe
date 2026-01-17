@@ -17,7 +17,58 @@ export interface DonationListingData {
   listedOn: string;
   status: 'available' | 'pending' | 'completed';
   requesterId: string;
-  recipientName?: string; // Add this property to store recipient name
+  recipientName?: string;
+
+  // Extended Profile
+  age?: number;
+  gender?: string;
+  weight?: number;
+  rhFactor?: string;
+
+  // Extended Antigen Profile
+  rhVariants?: {
+    C?: boolean;
+    c?: boolean;
+    E?: boolean;
+    e?: boolean;
+  };
+  kell?: boolean;
+  duffy?: boolean;
+  kidd?: boolean;
+
+  // Eligibility Factors
+  lastDonationDate?: string;
+  hemoglobinLevel?: number;
+  hasChronicIllness?: boolean;
+  chronicIllnessDetails?: string;
+  recentTravel?: boolean;
+  travelDetails?: string;
+  recentTattoo?: boolean;
+  tattooDate?: string;
+  recentSurgery?: boolean;
+  surgeryDetails?: string;
+  currentMedications?: string;
+  allergies?: string;
+
+  // Absolute Eligibility (Safety)
+  hivStatus?: boolean;
+  hepatitisB?: boolean;
+  hepatitisC?: boolean;
+  htlv?: boolean;
+  ivDrugUse?: boolean;
+
+  // Temporary Eligibility
+  recentColdFlu?: boolean;
+  recentVaccination?: boolean;
+  vaccinationDate?: string;
+  vaccinationType?: string;
+  pregnant?: boolean;
+
+  // Donation History
+  totalDonations?: number;
+  preferredDonationCenter?: string;
+  willingForEmergency?: boolean;
+  preferredContactMethod?: 'phone' | 'email' | 'sms';
 }
 
 interface DonationListingFormProps {
@@ -26,18 +77,85 @@ interface DonationListingFormProps {
   onSubmit: (data: DonationListingData) => void;
 }
 
+const INITIAL_FORM_STATE = {
+  // Core
+  bloodType: '',
+  rhFactor: '',
+  contactNumber: '',
+  availability: '',
+  location: '',
+  additionalInfo: '',
+  age: '',
+  gender: '',
+  weight: '',
+
+  // Extended antigens
+  rhVariants: { C: false, c: false, E: false, e: false },
+  kell: false,
+  duffy: false,
+  kidd: false,
+
+  // Eligibility & health
+  lastDonationDate: '',
+  hemoglobinLevel: '',
+  hasChronicIllness: false,
+  chronicIllnessDetails: '',
+  recentTravel: false,
+  travelDetails: '',
+  recentTattoo: false,
+  tattooDate: '',
+  recentSurgery: false,
+  surgeryDetails: '',
+  currentMedications: '',
+  allergies: '',
+
+  // Absolute eligibility (hard stops)
+  hivStatus: false,
+  hepatitisB: false,
+  hepatitisC: false,
+  htlv: false,
+  ivDrugUse: false,
+
+  // Temporary eligibility
+  recentColdFlu: false,
+  recentVaccination: false,
+  vaccinationDate: '',
+  vaccinationType: '',
+  pregnant: false,
+
+  // History & preferences
+  totalDonations: '',
+  preferredDonationCenter: '',
+  willingForEmergency: true,
+  preferredContactMethod: 'phone',
+};
+
 const DonationListingForm = ({ isOpen, onClose, onSubmit }: DonationListingFormProps) => {
   const { user, userData, updateUserRole } = useAuth(); // Get updateUserRole from useAuth
-  const [formData, setFormData] = useState({
-    bloodType: '',
-    contactNumber: '',
-    availability: '',
-    location: '',
-    additionalInfo: ''
-  });
+  const [formData, setFormData] = useState(INITIAL_FORM_STATE);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+
+  const handleBooleanChange = (name: string, value: boolean) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+    if (apiError) setApiError(null);
+  };
+
+  const handleRhVariantChange = (key: 'C' | 'c' | 'E' | 'e', value: boolean) => {
+    setFormData((prev) => ({
+      ...prev,
+      rhVariants: { ...prev.rhVariants, [key]: value },
+    }));
+    if (apiError) setApiError(null);
+  };
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -45,7 +163,20 @@ const DonationListingForm = ({ isOpen, onClose, onSubmit }: DonationListingFormP
     if (!formData.contactNumber) newErrors.contactNumber = 'Contact number is required';
     if (!formData.availability) newErrors.availability = 'Availability is required';
     if (!formData.location) newErrors.location = 'Location is required';
-    
+
+    // Hard-stop exclusions
+    const hardStops = [
+      formData.hivStatus,
+      formData.hepatitisB,
+      formData.hepatitisC,
+      formData.htlv,
+      formData.ivDrugUse,
+    ];
+    if (hardStops.some(Boolean)) {
+      toast.error('Eligibility check failed: donor is permanently deferred (HIV/Hepatitis/HTLV/IV drug use).');
+      return false;
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -56,7 +187,7 @@ const DonationListingForm = ({ isOpen, onClose, onSubmit }: DonationListingFormP
       ...prev,
       [name]: value
     }));
-    
+
     // Clear field-specific error when user edits the field
     if (errors[name]) {
       setErrors(prev => {
@@ -65,58 +196,52 @@ const DonationListingForm = ({ isOpen, onClose, onSubmit }: DonationListingFormP
         return newErrors;
       });
     }
-    
+
     // Clear API error when user makes any changes
     if (apiError) setApiError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Early return if already submitting to prevent double-submission
     if (isSubmitting) return;
-    
+
     if (!validateForm()) return;
-    
+
     // Set submitting state immediately
     setIsSubmitting(true);
     setApiError(null);
-    
+
     // Make a local copy of form data that we'll use for the API call
     // This prevents any state updates during the submission process
     const submissionData = { ...formData };
-    
+
     // Generate a submission ID for deduplication
-    const submissionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const submissionId = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
     const toastId = toast.loading('Creating donation listing...');
-    
+
     try {
       // First make sure user has donor role
       if (!user) {
         throw new Error('You must be logged in to create a donation listing');
       }
-      
+
       // First clear the form to prevent duplicate submissions if user clicks multiple times
-      setFormData({
-        bloodType: '',
-        contactNumber: '',
-        availability: '',
-        location: '',
-        additionalInfo: ''
-      });
-      
+      setFormData(INITIAL_FORM_STATE);
+
       // Close the modal immediately before API call
       onClose();
-      
+
       // Call the API to create the donation
       console.log(`Submitting donation data (ID: ${submissionId}):`, submissionData);
       const response = await donationAPI.createDonation({
         ...submissionData,
         submissionId, // Pass the submission ID to help with deduplication
       });
-      
+
       console.log('Donation created successfully:', response);
-      
+
       // Format the data for the parent component
       const newDonation: DonationListingData = {
         id: `donation-${response.id}`,
@@ -134,10 +259,10 @@ const DonationListingForm = ({ isOpen, onClose, onSubmit }: DonationListingFormP
         status: 'available',
         requesterId: '',
       };
-      
+
       // Notify parent of success
       onSubmit(newDonation);
-      
+
       // Show success message (parent component will now handle this)
       toast.success('Donation listed successfully!', { id: toastId });
     } catch (error: any) {
@@ -145,7 +270,7 @@ const DonationListingForm = ({ isOpen, onClose, onSubmit }: DonationListingFormP
       const errorMessage = error.message || 'Failed to list donation. Please try again.';
       setApiError(errorMessage);
       toast.error('Failed to list donation. Please try again', { id: toastId });
-      
+
       // Don't re-open modal on error, just show the error toast
     } finally {
       setIsSubmitting(false);
@@ -156,18 +281,18 @@ const DonationListingForm = ({ isOpen, onClose, onSubmit }: DonationListingFormP
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#ffffff] rounded-lg shadow-xl w-full max-w-lg border border-[#fecaca]">
+      <div className="bg-[#ffffff] rounded-lg shadow-xl w-full max-w-3xl border border-[#fecaca] max-h-[90vh] flex flex-col">
         <div className="flex justify-between items-center p-6 border-b border-[#fecaca]">
           <h2 className="text-xl font-semibold text-gray-900">List Your Donation</h2>
-          <button 
+          <button
             onClick={onClose}
             className="text-gray-600 hover:text-gray-900 transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
-        
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto flex-1">
           {/* Display API errors */}
           {apiError && (
             <div className="bg-red-900/20 border border-red-800 rounded-md p-3 flex items-start">
@@ -175,7 +300,7 @@ const DonationListingForm = ({ isOpen, onClose, onSubmit }: DonationListingFormP
               <p className="text-red-400 text-sm">{apiError}</p>
             </div>
           )}
-          
+
           <div className="space-y-2">
             <label htmlFor="bloodType" className="block text-sm font-medium text-gray-600">
               Blood Type <span className="text-red-500">*</span>
@@ -199,7 +324,7 @@ const DonationListingForm = ({ isOpen, onClose, onSubmit }: DonationListingFormP
             </select>
             {errors.bloodType && <p className="text-red-500 text-xs mt-1">{errors.bloodType}</p>}
           </div>
-          
+
           <div className="space-y-2">
             <label htmlFor="contactNumber" className="block text-sm font-medium text-gray-600">
               Contact Number <span className="text-red-500">*</span>
@@ -215,7 +340,7 @@ const DonationListingForm = ({ isOpen, onClose, onSubmit }: DonationListingFormP
             />
             {errors.contactNumber && <p className="text-red-500 text-xs mt-1">{errors.contactNumber}</p>}
           </div>
-          
+
           <div className="space-y-2">
             <label htmlFor="availability" className="block text-sm font-medium text-gray-600">
               Availability <span className="text-red-500">*</span>
@@ -231,7 +356,7 @@ const DonationListingForm = ({ isOpen, onClose, onSubmit }: DonationListingFormP
             />
             {errors.availability && <p className="text-red-500 text-xs mt-1">{errors.availability}</p>}
           </div>
-          
+
           <div className="space-y-2">
             <label htmlFor="location" className="block text-sm font-medium text-gray-600">
               Location <span className="text-red-500">*</span>
@@ -247,7 +372,182 @@ const DonationListingForm = ({ isOpen, onClose, onSubmit }: DonationListingFormP
             />
             {errors.location && <p className="text-red-500 text-xs mt-1">{errors.location}</p>}
           </div>
-          
+
+          <hr className="border-gray-200" />
+
+          {/* Demographics */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <label htmlFor="age" className="block text-sm font-medium text-gray-600">
+                Age
+              </label>
+              <input
+                id="age"
+                name="age"
+                type="number"
+                value={formData.age}
+                onChange={handleChange}
+                placeholder="Years"
+                className="w-full bg-[#f9fafb] border border-[#fecaca] rounded-md px-3 py-2 text-gray-900 focus:outline-none focus:ring-1 focus:ring-[#DC2626] focus:border-[#DC2626]"
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="gender" className="block text-sm font-medium text-gray-600">
+                Gender
+              </label>
+              <select
+                id="gender"
+                name="gender"
+                value={formData.gender}
+                onChange={handleChange}
+                className="w-full bg-[#f9fafb] border border-[#fecaca] rounded-md px-3 py-2 text-gray-900 focus:outline-none focus:ring-1 focus:ring-[#DC2626] focus:border-[#DC2626]"
+              >
+                <option value="">Select Gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="weight" className="block text-sm font-medium text-gray-600">
+                Weight (kg)
+              </label>
+              <input
+                id="weight"
+                name="weight"
+                type="number"
+                value={formData.weight}
+                onChange={handleChange}
+                placeholder="kg"
+                className="w-full bg-[#f9fafb] border border-[#fecaca] rounded-md px-3 py-2 text-gray-900 focus:outline-none focus:ring-1 focus:ring-[#DC2626] focus:border-[#DC2626]"
+              />
+            </div>
+          </div>
+
+          {/* Medical Eligibility (Hard Stops) */}
+          <div className="border border-red-200 rounded-md p-4 bg-red-50 space-y-3">
+            <h3 className="text-sm font-semibold text-red-800 flex items-center">
+              <AlertCircle className="h-4 w-4 mr-2" />
+              Safety & Eligibility (Hard Stops)
+            </h3>
+            <p className="text-xs text-red-600 mb-2">
+              Do you have a history of any of the following? (Selecting these may permanently exclude matching)
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {[
+                { key: 'hivStatus', label: 'HIV Positive' },
+                { key: 'hepatitisB', label: 'Hepatitis B' },
+                { key: 'hepatitisC', label: 'Hepatitis C' },
+                { key: 'htlv', label: 'HTLV Positive' },
+                { key: 'ivDrugUse', label: 'History of IV Drug Use' },
+              ].map(({ key, label }) => (
+                <label key={key} className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData[key as keyof typeof formData] as boolean}
+                    onChange={(e) => handleBooleanChange(key, e.target.checked)}
+                    className="rounded border-red-300 text-red-600 focus:ring-red-500 h-4 w-4"
+                  />
+                  <span className="text-sm text-gray-700">{label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Temporary Eligibility & History */}
+          <div className="bg-gray-50 p-4 rounded-md space-y-3 border border-gray-200">
+            <h3 className="text-sm font-semibold text-gray-800">Temporary Eligibility & Health</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {[
+                { key: 'recentColdFlu', label: 'Recent Cold/Flu' },
+                { key: 'recentTattoo', label: 'Recent Tattoo/Piercing' },
+                { key: 'recentSurgery', label: 'Recent Surgery' },
+                { key: 'pregnant', label: 'Pregnant/Recent Delivery' },
+                { key: 'recentVaccination', label: 'Recent Vaccination' },
+                { key: 'recentTravel', label: 'Recent Travel' },
+              ].map(({ key, label }) => (
+                <label key={key} className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData[key as keyof typeof formData] as boolean}
+                    onChange={(e) => handleBooleanChange(key, e.target.checked)}
+                    className="rounded border-gray-300 text-gray-600 focus:ring-gray-500 h-4 w-4"
+                  />
+                  <span className="text-sm text-gray-700">{label}</span>
+                </label>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-200">
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-gray-600">Last Donation Date</label>
+                <input
+                  type="date"
+                  name="lastDonationDate"
+                  value={formData.lastDonationDate}
+                  onChange={handleChange}
+                  className="w-full text-sm bg-white border border-[#fecaca] rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#DC2626] focus:border-[#DC2626]"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-gray-600">Hemoglobin (g/dL)</label>
+                <input
+                  type="number"
+                  name="hemoglobinLevel"
+                  value={formData.hemoglobinLevel}
+                  onChange={handleChange}
+                  step="0.1"
+                  placeholder="e.g. 13.5"
+                  className="w-full text-sm bg-white border border-[#fecaca] rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#DC2626] focus:border-[#DC2626]"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Extended Antigen Profile */}
+          <div className="bg-blue-50 p-4 rounded-md space-y-3 border border-blue-200">
+            <h3 className="text-sm font-semibold text-blue-800">Extended Antigen Profile (Optional)</h3>
+            <p className="text-xs text-blue-600 mb-2">Select if you know you are <strong>POSITIVE</strong> for these antigens. Leave unchecked if negative or unknown.</p>
+
+            <div className="space-y-2">
+              <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Rh Variants</span>
+              <div className="flex flex-wrap gap-4">
+                {['C', 'c', 'E', 'e'].map((variant) => (
+                  <label key={variant} className="flex items-center space-x-1 cursor-pointer bg-white px-3 py-1 rounded border border-blue-100 shadow-sm">
+                    <input
+                      type="checkbox"
+                      checked={formData.rhVariants[variant as 'C' | 'c' | 'E' | 'e']}
+                      onChange={(e) => handleRhVariantChange(variant as 'C' | 'c' | 'E' | 'e', e.target.checked)}
+                      className="rounded border-blue-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                    />
+                    <span className="text-sm font-medium text-gray-700">{variant}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-2">Other Antigens</span>
+              <div className="flex flex-wrap gap-4">
+                {[
+                  { key: 'kell', label: 'Kell (K)' },
+                  { key: 'duffy', label: 'Duffy' },
+                  { key: 'kidd', label: 'Kidd' }
+                ].map(({ key, label }) => (
+                  <label key={key} className="flex items-center space-x-1 cursor-pointer bg-white px-3 py-1 rounded border border-blue-100 shadow-sm">
+                    <input
+                      type="checkbox"
+                      checked={formData[key as keyof typeof formData] as boolean}
+                      onChange={(e) => handleBooleanChange(key, e.target.checked)}
+                      className="rounded border-blue-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                    />
+                    <span className="text-sm font-medium text-gray-700">{label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-2">
             <label htmlFor="additionalInfo" className="block text-sm font-medium text-gray-600">
               Additional Information <span className="text-gray-500">(optional)</span>
@@ -262,7 +562,7 @@ const DonationListingForm = ({ isOpen, onClose, onSubmit }: DonationListingFormP
               className="w-full bg-[#f9fafb] border border-[#fecaca] rounded-md px-3 py-2 text-gray-900 focus:outline-none focus:ring-1 focus:ring-[#DC2626] focus:border-[#DC2626]"
             />
           </div>
-          
+
           <div className="flex justify-end space-x-3 pt-4">
             <button
               type="button"

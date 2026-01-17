@@ -537,12 +537,11 @@ export const donationAPI = {
       });
 
       // Create the donation document with proper time fields
+      // Exclude submissionId from the saved document
+      const { submissionId, ...otherDonationData } = donationData;
+      
       const newDonation = {
-        bloodType: donationData.bloodType,
-        contactNumber: donationData.contactNumber,
-        availability: donationData.availability,
-        location: donationData.location,
-        additionalInfo: donationData.additionalInfo || "",
+        ...otherDonationData, // Spread all other fields (age, gender, rhVariants, eligibility flags, etc.)
         status: 'available',
         donorId: user.uid,
         donorName: donorName,

@@ -9,22 +9,21 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import React from "react";
 import SplitText from "@/components/ui/SplitText";
-import { 
-  Navbar, 
-  NavBody, 
-  NavItems, 
-  MobileNav, 
-  MobileNavHeader, 
-  NavbarButton 
+import {
+  Navbar,
+  NavBody,
+  NavItems,
+  MobileNav,
+  MobileNavHeader,
+  NavbarButton
 } from "@/components/ui/resizable-navbar";
 
 export default function Home() {
   const router = useRouter();
   const { error } = useAuth();
-  
+
   return (
     <div className="min-h-screen bg-white text-gray-900">
-      {/* Header */}
       {/* Resizable Navbar */}
       <Navbar>
         <NavBody>
@@ -34,36 +33,36 @@ export default function Home() {
               R.A.<span className="text-[#DC2626]">K.T</span>
             </h1>
           </div>
-          
+
           {/* Centered Nav Items */}
-          <NavItems 
+          <NavItems
             items={[
               { name: "Home", link: "/" },
               { name: "Donate", link: "/auth/register" },
               { name: "Find Blood", link: "/blood-requests" },
               { name: "About", link: "#" },
-            ]} 
+            ]}
             className="hidden lg:flex"
           />
 
           {/* Right Action Buttons */}
           <div className="flex items-center justify-end space-x-4 w-full max-w-[200px]">
-            <NavbarButton 
-              href="/auth/login" 
+            <NavbarButton
+              href="/auth/login"
               variant="secondary"
               className="text-[#DC2626] font-semibold hover:bg-red-50"
             >
               Login
             </NavbarButton>
-            <NavbarButton 
-              href="/auth/register" 
+            <NavbarButton
+              href="/auth/register"
               className="bg-[#DC2626] text-white hover:bg-[#B91C1C] shadow-none"
             >
               Sign Up
             </NavbarButton>
           </div>
         </NavBody>
-        
+
         {/* Mobile Navigation */}
         <MobileNav className="lg:hidden">
           <MobileNavHeader>
@@ -80,7 +79,7 @@ export default function Home() {
           </MobileNavHeader>
         </MobileNav>
       </Navbar>
-      
+
 
       {/* Hero Section with Video Background */}
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
@@ -97,10 +96,10 @@ export default function Home() {
           {/* Fallback for browsers that don't support video */}
           Your browser does not support the video tag.
         </video>
-        
+
         {/* Light overlay for text readability */}
         <div className="absolute inset-0 bg-white/30"></div>
-        
+
         {/* Content - Centered */}
         <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
           <SplitText
@@ -151,7 +150,7 @@ export default function Home() {
           </div>
         </div>
       </section>
-      
+
       {/* Features Section */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-50">
         <div className="max-w-7xl mx-auto">
@@ -161,7 +160,7 @@ export default function Home() {
           <p className="text-center text-gray-600 mb-12 max-w-2xl mx-auto">
             Join our mission to ensure blood availability for everyone in need
           </p>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="p-6 rounded-lg bg-white border border-red-100 shadow-sm hover:shadow-md transition-all">
               <div className="h-12 w-12 bg-[#DC2626]/10 rounded-lg flex items-center justify-center mb-4">
