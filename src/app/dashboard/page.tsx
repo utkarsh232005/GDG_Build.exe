@@ -27,6 +27,7 @@ export default function Dashboard() {
   );
   const [donations, setDonations] = useState<DonationListingData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [appointmentToReschedule, setAppointmentToReschedule] = useState<Appointment | null>(null);
   const [notifications, setNotifications] = useState([
     { id: 1, type: 'emergency', message: 'Urgent need for O- blood type in City Hospital', time: '10 min ago' },
@@ -61,6 +62,7 @@ export default function Dashboard() {
 
       console.log("Starting donation fetch process with user:", user.uid);
       setIsLoading(true);
+      setLoadError(null);
 
       try {
         console.log(`Fetching donations as ${userType}...`);
@@ -124,9 +126,11 @@ export default function Dashboard() {
 
         console.log("Processed transformed donations:", transformedDonations);
         setDonations(transformedDonations);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error fetching donations:', error);
-        toast.error("Failed to load donations. Please refresh and try again.");
+        const errorMessage = error.message || "Failed to load donations";
+        setLoadError(errorMessage);
+        toast.error(`Error: ${errorMessage}`);
         // Set empty array instead of keeping old state to avoid stale data
         setDonations([]);
       } finally {
@@ -734,6 +738,18 @@ export default function Dashboard() {
                   <div className="h-12 w-12 border-4 border-[#DC2626] border-t-transparent rounded-full animate-spin mb-4"></div>
                   <p className="text-gray-600">Loading donations...</p>
                 </div>
+              ) : loadError ? (
+                <div className="p-8 text-center bg-red-50 border border-red-200 rounded-lg">
+                  <AlertCircle className="h-12 w-12 mx-auto text-red-600 mb-4" />
+                  <h3 className="text-xl font-semibold text-red-800 mb-2">Error Loading Data</h3>
+                  <p className="text-red-600 mb-6">{loadError}</p>
+                  <button
+                    onClick={() => refreshUserDataAndDonations()}
+                    className="bg-red-600 hover:bg-red-700 text-white py-2 px-6 rounded-md transition-colors"
+                  >
+                    Retry
+                  </button>
+                </div>
               ) : donations.length === 0 ? (
                 <div className="p-8 text-center bg-white border border-red-100 rounded-lg">
                   <Heart className="h-12 w-12 mx-auto text-[#DC2626] mb-4" />
@@ -811,8 +827,8 @@ export default function Dashboard() {
                           </div>
                           <div className="flex flex-col space-y-2">
                             <span className={`text-xs px-2 py-1 rounded-full ${appointment.status === 'confirmed'
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-yellow-100 text-yellow-700'
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-yellow-100 text-yellow-700'
                               }`}>
                               {appointment.status === 'confirmed' ? 'Confirmed' : 'Pending'}
                             </span>
@@ -854,10 +870,10 @@ export default function Dashboard() {
                       userNotifications.slice(0, 3).map((notification) => (
                         <div key={notification.id || Math.random()} className="flex items-start space-x-4 p-4 rounded-md bg-gray-50 border border-red-100">
                           <div className={`flex-shrink-0 p-2 rounded-md ${notification.type === 'request'
-                              ? 'bg-blue-100'
-                              : notification.type === 'accepted'
-                                ? 'bg-green-100'
-                                : 'bg-gray-100'
+                            ? 'bg-blue-100'
+                            : notification.type === 'accepted'
+                              ? 'bg-green-100'
+                              : 'bg-gray-100'
                             }`}>
                             {notification.type === 'request' ? (
                               <Heart className="h-5 w-5 text-blue-600" />

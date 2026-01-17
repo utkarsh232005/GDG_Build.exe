@@ -388,48 +388,44 @@ export const donationAPI = {
       const user = auth.currentUser;
       if (!user) throw new Error('Not authenticated');
 
-      try {
-        // First check if the collection exists
-        const donationsRef = collection(db, 'donations');
-        const donationsSnapshot = await getDocs(
-          query(donationsRef, where('status', '==', 'available'), limit(100))
-        );
+      // First check if the collection exists
+      const donationsRef = collection(db, 'donations');
+      const q = query(donationsRef, where('status', '==', 'available'), limit(100));
 
-        console.log(`Found ${donationsSnapshot.size} available donations`);
+      console.log("Executing getAvailableDonations query...");
+      const donationsSnapshot = await getDocs(q);
 
-        // Map the data with error handling
-        const donations = donationsSnapshot.docs.map(doc => {
-          try {
-            const data = doc.data();
-            return {
-              id: doc.id,
-              donorId: data.donorId || '',
-              donorName: data.donorName || 'Anonymous',
-              bloodType: data.bloodType || 'Unknown',
-              contactNumber: data.contactNumber || 'N/A',
-              availability: data.availability || 'N/A',
-              location: data.location || 'N/A',
-              additionalInfo: data.additionalInfo || '',
-              status: data.status || 'available',
-              recipientId: data.recipientId || '',
-              createdAt: data.createdAt?.toDate?.() || new Date(),
-              listedOn: data.listedOn || new Date().toISOString()
-            };
-          } catch (err) {
-            console.error("Error processing donation document:", err, doc.id);
-            return null;
-          }
-        }).filter(Boolean); // Remove any nulls
+      console.log(`Found ${donationsSnapshot.size} available donations`);
 
-        console.log("Processed donations:", donations.length);
-        return donations;
-      } catch (error) {
-        console.error("Error getting available donations:", error);
-        return []; // Return empty array on error
-      }
+      // Map the data with error handling
+      const donations = donationsSnapshot.docs.map(doc => {
+        try {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            donorId: data.donorId || '',
+            donorName: data.donorName || 'Anonymous',
+            bloodType: data.bloodType || 'Unknown',
+            contactNumber: data.contactNumber || 'N/A',
+            availability: data.availability || 'N/A',
+            location: data.location || 'N/A',
+            additionalInfo: data.additionalInfo || '',
+            status: data.status || 'available',
+            recipientId: data.recipientId || '',
+            createdAt: data.createdAt?.toDate?.() || new Date(),
+            listedOn: data.listedOn || new Date().toISOString()
+          };
+        } catch (err) {
+          console.error("Error processing donation document:", err, doc.id);
+          return null;
+        }
+      }).filter(Boolean); // Remove any nulls
+
+      console.log("Processed donations:", donations.length);
+      return donations;
     } catch (error) {
       console.error("Error in getAvailableDonations:", error);
-      return []; // Return empty array on error
+      throw error; // Rethrow to let the UI handle it
     }
   },
 
@@ -448,9 +444,13 @@ export const donationAPI = {
         where('donorId', '==', user.uid)
       );
 
-      console.log("Executing Firestore query for user donations");
+      console.log("Executing Firestore query for user donations associated with uid:", user.uid);
       const querySnapshot = await getDocs(q);
       console.log("Query complete, documents found:", querySnapshot.size);
+
+      if (querySnapshot.empty) {
+        console.warn(`No donations found for donorId: ${user.uid}. Check if 'donorId' field matches.`);
+      }
 
       // Convert query snapshot to array of donation objects with better error handling
       const donations = querySnapshot.docs.map(doc => {
@@ -476,11 +476,11 @@ export const donationAPI = {
         }
       }).filter(Boolean); // Remove any null items
 
-      console.log("Parsed donations:", donations.length, donations);
+      console.log("Parsed donations:", donations.length);
       return donations;
     } catch (error) {
       console.error("Error getting user donations:", error);
-      return []; // Return empty array on error instead of throwing
+      throw error; // Rethrow so UI knows it failed
     }
   },
 
@@ -539,7 +539,7 @@ export const donationAPI = {
       // Create the donation document with proper time fields
       // Exclude submissionId from the saved document
       const { submissionId, ...otherDonationData } = donationData;
-      
+
       const newDonation = {
         ...otherDonationData, // Spread all other fields (age, gender, rhVariants, eligibility flags, etc.)
         status: 'available',
