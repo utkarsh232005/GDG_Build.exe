@@ -222,7 +222,7 @@ const DonationListingForm = ({ isOpen, onClose, onSubmit }: DonationListingFormP
     const submissionData = { ...formData };
 
     // Generate a submission ID for deduplication
-    const submissionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const submissionId = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
     const toastId = toast.loading('Creating donation listing...');
 
     try {
